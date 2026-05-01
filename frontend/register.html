@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Sign Up</title>
+
+    <style>
+      body {
+        margin: 0;
+        background: radial-gradient(circle at top, #2a0a0a, #0b0b0b);
+        color: #e5d3b3;
+        font-family: "Segoe UI", sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+      .box {
+        width: 340px;
+        padding: 45px;
+        border-radius: 14px;
+        background: rgba(15, 15, 15, 0.9);
+        border: 1px solid rgba(229, 211, 179, 0.15);
+        backdrop-filter: blur(15px);
+        box-shadow: 0 0 40px rgba(255, 215, 0, 0.08);
+        text-align: center;
+        animation: fadeUp 0.6s ease;
+      }
+
+      h2 {
+        letter-spacing: 3px;
+        margin-bottom: 30px;
+      }
+
+      input {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 18px;
+        background: transparent;
+        border: 1px solid rgba(229, 211, 179, 0.4);
+        color: white;
+        border-radius: 6px;
+        transition: 0.3s;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: gold;
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        background: linear-gradient(135deg, #e5d3b3, gold);
+        color: black;
+        border: none;
+        cursor: pointer;
+        border-radius: 6px;
+        font-weight: bold;
+        transition: 0.3s;
+      }
+
+      button:hover {
+        transform: scale(1.03);
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+      }
+
+      #msg {
+        margin-top: 15px;
+        font-size: 14px;
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .footer {
+        margin-top: 20px;
+        font-size: 13px;
+        color: #777;
+      }
+
+      .footer a {
+        color: #d4af37;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="box">
+      <h2>SIGN UP</h2>
+
+      <input id="name" placeholder="Name" />
+      <input id="email" placeholder="Email" />
+      <input id="password" type="password" placeholder="Password" />
+
+      <button onclick="register()">REGISTER</button>
+
+      <p id="msg"></p>
+
+      <div class="footer">
+        Already have an account? <a href="login.html">Sign in</a>
+      </div>
+    </div>
+
+    <script>
+      async function register() {
+        const name = document.getElementById("name").value;
+        const email = document.getElementById("email").value;
+        const password = document.getElementById("password").value;
+
+        try {
+          const res = await fetch("http://localhost:5000/api/auth/register", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name, email, password }),
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            document.getElementById("msg").innerText =
+              "Registered successfully!";
+            setTimeout(() => {
+              window.location.href = "login.html";
+            }, 1000);
+          } else {
+            document.getElementById("msg").innerText =
+              data.msg || "Registration failed";
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    </script>
+  </body>
+</html>

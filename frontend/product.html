@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Product</title>
+
+  <style>
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #2a0a0a, #0b0b0b);
+      color: #e5d3b3;
+      font-family: "Segoe UI", sans-serif;
+      padding: 50px 20px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+    }
+
+    .card {
+      display: flex;
+      gap: 50px;
+      background: rgba(15,15,15,0.95);
+      border: 1px solid rgba(229,211,179,0.12);
+      border-radius: 18px;
+      padding: 35px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    }
+
+    .image {
+      flex: 1;
+      background: #0a0a0a;
+      border-radius: 14px;
+      padding: 30px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .image img {
+      max-width: 100%;
+      max-height: 340px;
+    }
+
+    .details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;   /* 🔥 THIS FIXES VERTICAL ALIGNMENT */
+}
+    .title {
+      font-size: 26px;
+      margin-bottom: 10px;
+    }
+
+    .price {
+      font-size: 30px;
+      color: gold;
+      margin-bottom: 10px;
+    }
+
+    .bidder {
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 15px;
+    }
+
+    .timer {
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      margin-bottom: 20px;
+      display: inline-block;
+    }
+
+    .timer.normal {
+      border: 1px solid rgba(255,0,0,0.3);
+      background: rgba(255,0,0,0.08);
+      color: #ff4d4d;
+    }
+
+    .timer.ended {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #aaa;
+    }
+
+    input {
+      padding: 12px;
+      margin-bottom: 12px;
+      background: transparent;
+      border: 1px solid rgba(229,211,179,0.3);
+      color: white;
+      border-radius: 6px;
+      width: 100%;
+    }
+
+    button {
+      padding: 12px;
+      background: linear-gradient(135deg,#e5d3b3,gold);
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    button:disabled {
+      background: #333;
+      color: #777;
+      cursor: not-allowed;
+    }
+
+    .buy {
+      background: linear-gradient(135deg,#1f6f3e,#2ecc71);
+    }
+
+    .history {
+      margin-top: 40px;
+      background: rgba(15,15,15,0.95);
+      border: 1px solid rgba(229,211,179,0.12);
+      border-radius: 14px;
+      padding: 20px;
+    }
+
+    .empty {
+      text-align: center;
+      color: #777;
+      padding: 20px 0;
+    }
+
+    /* remove arrows */
+    input::-webkit-inner-spin-button {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+  <div id="product"></div>
+  <div id="bidHistory" class="history"></div>
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+<script>
+const API = "http://localhost:5000/api";
+const socket = io("http://localhost:5000");
+
+let productId, productData;
+
+async function loadProduct() {
+  productId = new URLSearchParams(window.location.search).get("id");
+
+  const res = await fetch(`${API}/products/${productId}`);
+  const product = await res.json();
+  productData = product;
+
+  document.getElementById("product").innerHTML = `
+    <div class="card">
+      <div class="image">
+        <img src="${product.image}">
+      </div>
+
+      <div class="details">
+        <div class="title">${product.title}</div>
+
+        ${
+          product.isAuction
+          ? `
+            <div class="price">₹<span id="bid">${product.currentBid}</span></div>
+
+            <div class="bidder">
+              Highest Bidder: 
+              <span id="highestBidder">
+                ${product.highestBidder?.name || "— No bids yet"}
+              </span>
+            </div>
+
+            <div class="timer normal" id="timer">Loading...</div>
+
+            <input id="amount" type="number" placeholder="Enter bid">
+
+            <button id="bidBtn" onclick="placeBid()">Place Bid</button>
+          `
+          : `
+            <div class="price">₹${product.price}</div>
+            <button class="buy">Buy Now</button>
+          `
+        }
+      </div>
+    </div>
+  `;
+
+  if (product.isAuction) {
+    loadBids();
+
+    if (!product.auctionEndTime) {
+      const el = document.getElementById("timer");
+      el.innerText = "No end time set";
+      el.classList.remove("normal");
+      el.classList.add("ended");
+    } else {
+      startTimer(product.auctionEndTime);
+    }
+  }
+}
+
+async function loadBids() {
+  const res = await fetch(`${API}/bids/${productId}`);
+  const bids = await res.json();
+
+  const container = document.getElementById("bidHistory");
+  container.innerHTML = "<h3>Bid History</h3>";
+
+  if (bids.length === 0) {
+    container.innerHTML += `<div class="empty">No bids yet 🚀</div>`;
+    return;
+  }
+
+  bids.reverse().forEach(b => {
+    container.innerHTML += `<p>${b.user?.name || "User"} bid ₹${b.amount}</p>`;
+  });
+}
+
+async function placeBid() {
+  const amount = Number(document.getElementById("amount").value);
+  const token = localStorage.getItem("token");
+
+  if (!amount || amount <= productData.currentBid) {
+    alert("Enter valid bid");
+    return;
+  }
+
+  await fetch(`${API}/bids/${productId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: token
+    },
+    body: JSON.stringify({ amount })
+  });
+}
+
+function startTimer(endTime) {
+  const el = document.getElementById("timer");
+  const btn = document.getElementById("bidBtn");
+  const input = document.getElementById("amount");
+
+  const end = new Date(endTime);
+
+  setInterval(() => {
+    const diff = end - new Date();
+
+    if (diff <= 0) {
+      el.innerText = "Auction Ended";
+      el.classList.remove("normal");
+      el.classList.add("ended");
+
+      btn.disabled = true;
+      input.disabled = true;
+      return;
+    }
+
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+
+    el.innerText = `⏳ ${h}h ${m}m ${s}s left`;
+  }, 1000);
+}
+
+socket.on("newBid", (p) => {
+  if (p._id === productId) {
+    document.getElementById("bid").innerText = p.currentBid;
+    document.getElementById("highestBidder").innerText =
+      p.highestBidder?.name || "User";
+    loadBids();
+  }
+});
+
+loadProduct();
+</script>
+
+
+</body>
+</html>
